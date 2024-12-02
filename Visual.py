@@ -421,3 +421,35 @@ def process_query(self, query: str) -> Dict[str, Any]:
             "message": str(e),
             "status": "error"
         }
+
+
+
+class SchemaLookupTool(Tool):
+    def execute(self, query: str) -> Dict[str, Any]:
+        query_embedding = self.embed_model.encode(query)
+        relevant_tables = []
+        
+        logger.info(f"Searching relevant tables for query: {query}")
+        
+        for table_name, embedding in self.table_embeddings.items():
+            similarity = np.dot(query_embedding, embedding)
+            logger.info(f"Table: {table_name}, Similarity: {similarity:.4f}")
+            
+            if similarity > 0.5:
+                table_info = self.schema_config['tables'][table_name]
+                relevant_tables.append({
+                    "name": table_name,
+                    "create_statement": table_info['create_statement'],
+                    "description": table_info['description'],
+                    "sample_questions": table_info.get('sample_questions', [])
+                })
+        
+        logger.info(f"Selected tables: {[t['name'] for t in relevant_tables]}")
+        
+        result = {
+            "status": "success",
+            "relevant_tables": relevant_tables,
+            "schema_context": "\n".join(t["create_statement"] for t in relevant_tables)
+        }
+        
+        return result
