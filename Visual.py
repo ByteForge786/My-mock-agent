@@ -235,3 +235,189 @@ class Agent:
                 "message": str(e),
                 "status": "error"
             }
+
+
+
+
+
+
+
+
+def process_query(self, query: str) -> Dict[str, Any]:
+    """Main query processing pipeline with comprehensive error handling and logging"""
+    try:
+        # Step 1: Analyze query intent and get plan
+        logger.info(f"Starting query analysis for: {query}")
+        analysis = self.analyze_query(query)
+        logger.info(f"Query analysis result: {analysis}")
+
+        # Handle non-data queries
+        if analysis.get("query_type") in ["greeting", "help"]:
+            logger.info("Handling greeting/help query")
+            return self.handle_greeting_or_help(query)
+        elif analysis.get("query_type") == "off_topic":
+            logger.info("Handling off-topic query")
+            return {
+                "type": "conversation",
+                "response": "I can only help with data analysis questions about the available data."
+            }
+
+        # Initialize context and steps tracking
+        context = {"query": query}
+        executed_steps = []
+
+        # Validate plan exists
+        if not analysis.get("plan"):
+            logger.error("No execution plan in analysis")
+            return {
+                "type": "error",
+                "message": "Failed to create execution plan",
+                "status": "error"
+            }
+
+        # Execute each step in the plan
+        for step_info in analysis["plan"]:
+            logger.info(f"Processing step: {step_info}")
+            
+            # Validate step structure
+            if not isinstance(step_info, dict) or "tool" not in step_info:
+                logger.error(f"Invalid step information: {step_info}")
+                continue
+
+            tool_name = step_info["tool"]
+            if tool_name not in self.tools:
+                logger.error(f"Unknown tool requested: {tool_name}")
+                continue
+
+            tool = self.tools[tool_name]
+            result = {"status": "error", "message": "Step not executed"}
+
+            try:
+                # Schema Lookup
+                if tool_name == ToolType.SCHEMA.value:
+                    result = tool.execute(query=query)
+                    if result["status"] == "success":
+                        logger.info(f"Schema lookup successful. Found tables: {[t['name'] for t in result.get('relevant_tables', [])]}")
+                        context.update(result)
+
+                # SQL Generation
+                elif tool_name == ToolType.SQL.value:
+                    if "schema_context" not in context:
+                        raise ValueError("Missing schema context for SQL generation")
+                    result = tool.execute(
+                        user_query=query,
+                        schema_context=context["schema_context"]
+                    )
+                    if result["status"] == "success":
+                        context["sql"] = result["sql"]
+                        logger.info("SQL generation successful")
+
+                # SQL Validation
+                elif tool_name == ToolType.VALIDATION.value:
+                    if "sql" not in context:
+                        raise ValueError("Missing SQL for validation")
+                    
+                    retry_count = 0
+                    while retry_count < SQLValidationTool.MAX_RETRIES:
+                        logger.info(f"Validation attempt {retry_count + 1}")
+                        result = tool.execute(
+                            sql=context["sql"],
+                            schema_context=context["schema_context"],
+                            retry_count=retry_count
+                        )
+                        
+                        if result["status"] == "success" and result.get("is_safe", False):
+                            logger.info("SQL validation successful")
+                            break
+                            
+                        if retry_count < SQLValidationTool.MAX_RETRIES - 1:
+                            logger.info(f"Retrying SQL generation with feedback: {result.get('feedback', '')}")
+                            sql_result = self.tools[ToolType.SQL.value].execute(
+                                user_query=f"{query} [Feedback: {result.get('feedback', '')}]",
+                                schema_context=context["schema_context"]
+                            )
+                            if sql_result["status"] == "success":
+                                context["sql"] = sql_result["sql"]
+                        
+                        retry_count += 1
+
+                # SQL Execution
+                elif tool_name == ToolType.EXECUTION.value:
+                    if "sql" not in context:
+                        raise ValueError("Missing SQL for execution")
+                    result = tool.execute(sql=context["sql"])
+                    if result["status"] == "success":
+                        logger.info(f"SQL execution successful. Rows: {result.get('metadata', {}).get('row_count', 0)}")
+                        context.update(result)
+
+                # Visualization
+                elif tool_name == ToolType.VISUALIZATION.value:
+                    if not analysis.get("needs_visualization"):
+                        logger.info("Skipping visualization - not needed")
+                        continue
+                        
+                    if "metadata" not in context or "data" not in context:
+                        raise ValueError("Missing data/metadata for visualization")
+                    
+                    result = tool.execute(
+                        user_query=query,
+                        metadata=context["metadata"]
+                    )
+                    
+                    if result["status"] == "success" and "config" in result:
+                        try:
+                            df = context["data"]
+                            viz_type = result.get("viz_type", "bar")
+                            viz_config = result["config"]
+                            
+                            logger.info(f"Creating {viz_type} visualization")
+                            fig = px.line(df, **viz_config) if viz_type == "line" else px.bar(df, **viz_config)
+                            context["visualization"] = fig
+                            result["visualization_created"] = True
+                            logger.info("Visualization created successfully")
+                        except Exception as viz_error:
+                            logger.error(f"Visualization creation failed: {viz_error}")
+                            result = {
+                                "status": "error",
+                                "message": str(viz_error)
+                            }
+
+            except Exception as step_error:
+                logger.error(f"Error in {tool_name}: {str(step_error)}")
+                result = {
+                    "status": "error",
+                    "message": str(step_error)
+                }
+
+            # Record step execution
+            step_record = {
+                "tool": tool_name,
+                "status": result.get("status", "error"),
+                "result": {k: v for k, v in result.items() if k != "tool"},
+                "reason": step_info.get("reason", "")
+            }
+            executed_steps.append(step_record)
+
+            # Break on failure
+            if step_record["status"] != "success":
+                logger.error(f"Step failed: {tool_name}")
+                break
+
+        # Prepare final response
+        success = all(step["status"] == "success" for step in executed_steps)
+        logger.info(f"Query processing completed. Success: {success}")
+        
+        return {
+            "type": "analysis",
+            "steps": executed_steps,
+            "context": context,
+            "status": "success" if success else "error"
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing query: {traceback.format_exc()}")
+        return {
+            "type": "error",
+            "message": str(e),
+            "status": "error"
+        }
