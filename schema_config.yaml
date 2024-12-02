@@ -1,8 +1,35 @@
 ```yaml
 # schema_config.yaml
+metadata:
+  version: "1.0"
+  last_updated: "2024-03-01"
+  description: "Business analytics database schema and capabilities"
+
+response_templates:
+  greeting: |
+    Hello! I'm your SQL Analytics Assistant. I can help you analyze:
+    - Sales performance and trends
+    - Customer behavior and segments
+    - Product performance and inventory
+    What would you like to know about?
+
+  help: |
+    I can help you analyze data from our business database. Here are some things I can do:
+    {capabilities}
+    
+    Some example questions:
+    {sample_questions}
+
+  off_topic: |
+    I'm specialized in business data analysis and can only help with questions about:
+    {available_domains}
+    
+    Would you like to know what kind of analysis I can perform?
+
 tables:
   sales_transactions:
-    description: "Records of all sales transactions including customer purchases, revenue, and product details"
+    description: "Daily sales transactions with customer and product details"
+    business_domain: "sales"
     create_statement: >
       CREATE TABLE sales_transactions (
         transaction_id INTEGER PRIMARY KEY,
@@ -19,232 +46,123 @@ tables:
         FOREIGN KEY (product_id) REFERENCES products(product_id),
         FOREIGN KEY (store_id) REFERENCES stores(store_id)
       )
-    columns:
-      - name: transaction_id
-        type: INTEGER
-        description: "Unique identifier for each transaction"
-      - name: date
-        type: TIMESTAMP
-        description: "Date and time when the sale occurred"
-      - name: customer_id
-        type: INTEGER
-        description: "Reference to the customer who made the purchase"
-      - name: product_id
-        type: INTEGER
-        description: "Reference to the product that was sold"
-      - name: store_id
-        type: INTEGER
-        description: "Reference to the store where the sale occurred"
-      - name: quantity
-        type: INTEGER
-        description: "Number of units sold"
-      - name: unit_price
-        type: DECIMAL
-        description: "Price per unit at time of sale"
-      - name: discount_amount
-        type: DECIMAL
-        description: "Amount of discount applied"
-      - name: total_amount
-        type: DECIMAL
-        description: "Final amount after applying discounts"
-      - name: payment_method
-        type: VARCHAR
-        description: "Method of payment (cash, credit, debit, etc.)"
+    sample_questions:
+      - "What were our total sales last month?"
+      - "Show me daily sales trend"
+      - "Which products have highest revenue?"
+    visualization_hints:
+      - type: "trend"
+        columns: ["date", "total_amount"]
+        chart: "line"
+      - type: "comparison"
+        columns: ["product_id", "total_amount"]
+        chart: "bar"
 
-  products:
-    description: "Master product catalog containing all product information including categories, pricing, and inventory"
-    create_statement: >
-      CREATE TABLE products (
-        product_id INTEGER PRIMARY KEY,
-        name VARCHAR(200),
-        category VARCHAR(100),
-        subcategory VARCHAR(100),
-        brand VARCHAR(100),
-        supplier_id INTEGER,
-        base_price DECIMAL(10,2),
-        current_stock INTEGER,
-        reorder_level INTEGER,
-        is_active BOOLEAN,
-        created_at TIMESTAMP,
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id)
-      )
-    columns:
-      - name: product_id
-        type: INTEGER
-        description: "Unique identifier for each product"
-      - name: name
-        type: VARCHAR
-        description: "Product name/title"
-      - name: category
-        type: VARCHAR
-        description: "Main product category (Electronics, Clothing, etc.)"
-      - name: subcategory
-        type: VARCHAR
-        description: "Specific product subcategory"
-      - name: brand
-        type: VARCHAR
-        description: "Product brand or manufacturer"
-      - name: supplier_id
-        type: INTEGER
-        description: "Reference to the supplier"
-      - name: base_price
-        type: DECIMAL
-        description: "Standard retail price before discounts"
-      - name: current_stock
-        type: INTEGER
-        description: "Current inventory level"
-      - name: reorder_level
-        type: INTEGER
-        description: "Minimum stock level before reordering"
-      - name: is_active
-        type: BOOLEAN
-        description: "Whether product is currently being sold"
-      - name: created_at
-        type: TIMESTAMP
-        description: "When product was added to catalog"
+  # ... [other table definitions remain same]
 
-  customers:
-    description: "Customer master data containing demographics, contact information, and purchase history"
-    create_statement: >
-      CREATE TABLE customers (
-        customer_id INTEGER PRIMARY KEY,
-        first_name VARCHAR(100),
-        last_name VARCHAR(100),
-        email VARCHAR(200),
-        phone VARCHAR(50),
-        address TEXT,
-        city VARCHAR(100),
-        state VARCHAR(50),
-        country VARCHAR(50),
-        postal_code VARCHAR(20),
-        segment VARCHAR(50),
-        registration_date DATE,
-        last_purchase_date DATE,
-        lifetime_value DECIMAL(15,2)
-      )
-    columns:
-      - name: customer_id
-        type: INTEGER
-        description: "Unique identifier for each customer"
-      - name: first_name
-        type: VARCHAR
-        description: "Customer's first name"
-      - name: last_name
-        type: VARCHAR
-        description: "Customer's last name"
-      - name: email
-        type: VARCHAR
-        description: "Primary email address"
-      - name: phone
-        type: VARCHAR
-        description: "Contact phone number"
-      - name: address
-        type: TEXT
-        description: "Street address"
-      - name: city
-        type: VARCHAR
-        description: "City name"
-      - name: state
-        type: VARCHAR
-        description: "State or province"
-      - name: country
-        type: VARCHAR
-        description: "Country name"
-      - name: postal_code
-        type: VARCHAR
-        description: "Postal or ZIP code"
-      - name: segment
-        type: VARCHAR
-        description: "Customer segment (Premium, Regular, etc.)"
-      - name: registration_date
-        type: DATE
-        description: "When customer first registered"
-      - name: last_purchase_date
-        type: DATE
-        description: "Date of most recent purchase"
-      - name: lifetime_value
-        type: DECIMAL
-        description: "Total value of all purchases"
-
-relationships:
-  - name: "sales_to_customers"
-    from_table: "sales_transactions"
-    from_column: "customer_id"
-    to_table: "customers"
-    to_column: "customer_id"
-    type: "many_to_one"
-    description: "Links sales to customer details"
-
-  - name: "sales_to_products"
-    from_table: "sales_transactions"
-    from_column: "product_id"
-    to_table: "products"
-    to_column: "product_id"
-    type: "many_to_one"
-    description: "Links sales to product information"
-
-semantic_mappings:
-  revenue:
-    - "total_amount"
-    - "revenue"
-    - "sales"
-    - "income"
-    - "earnings"
-    - "money"
-  
-  customer:
-    - "customer"
-    - "buyer"
-    - "client"
-    - "shopper"
-    - "consumer"
-  
-  product:
-    - "product"
-    - "item"
-    - "goods"
-    - "merchandise"
-    - "sku"
-  
-  time:
-    - "date"
-    - "time"
-    - "period"
-    - "month"
-    - "year"
-    - "daily"
-    - "monthly"
-    - "yearly"
-  
-  location:
-    - "city"
-    - "state"
-    - "country"
-    - "region"
-    - "area"
-    - "location"
-
-query_patterns:
+analysis_types:
   time_series:
-    - "trend"
-    - "over time"
-    - "historical"
-    - "daily"
-    - "monthly"
-    - "yearly"
-    
+    description: "Analyze trends over time"
+    required_columns: ["date", "timestamp"]
+    visualization: "line"
+    aggregations: ["daily", "weekly", "monthly"]
+    sample_phrases:
+      - "trend"
+      - "over time"
+      - "daily/weekly/monthly"
+
   comparison:
-    - "compare"
-    - "versus"
-    - "difference"
-    - "highest"
-    - "lowest"
+    description: "Compare different categories/segments"
+    visualization: "bar"
+    aggregations: ["sum", "average", "count"]
+    sample_phrases:
+      - "compare"
+      - "highest/lowest"
+      - "top/bottom"
+
+  distribution:
+    description: "Analyze data distribution"
+    visualization: "histogram"
+    aggregations: ["count", "bucket"]
+    sample_phrases:
+      - "distribution"
+      - "spread"
+      - "range"
+
+common_questions:
+  sales_analysis:
+    - question: "What were total sales by category?"
+      required_tables: ["sales_transactions", "products"]
+      visualization: "bar"
+      
+  customer_analysis:
+    - question: "Who are our top customers?"
+      required_tables: ["customers", "sales_transactions"]
+      visualization: "bar"
+      
+  product_analysis:
+    - question: "Show me product performance"
+      required_tables: ["products", "sales_transactions"]
+      visualization: "line"
+
+sql_patterns:
+  time_windows:
+    last_month: "DATE_TRUNC('month', date_column) = DATE_TRUNC('month', DATEADD(month, -1, CURRENT_DATE()))"
+    last_week: "DATE_TRUNC('week', date_column) = DATE_TRUNC('week', DATEADD(week, -1, CURRENT_DATE()))"
     
-  aggregation:
-    - "total"
-    - "average"
-    - "sum"
-    - "count"
-    - "minimum"
-    - "maximum"
+  aggregations:
+    daily: "DATE_TRUNC('day', date_column)"
+    monthly: "DATE_TRUNC('month', date_column)"
+    
+  rankings:
+    top_n: "QUALIFY ROW_NUMBER() OVER (ORDER BY metric DESC) <= n"
+    
+  comparisons:
+    year_over_year: """
+    WITH current_year AS (...),
+         prev_year AS (...)
+    """
+
+business_metrics:
+  revenue:
+    calculation: "SUM(total_amount)"
+    aliases: ["sales", "income"]
+    
+  average_order_value:
+    calculation: "AVG(total_amount)"
+    aliases: ["aov", "average sale"]
+    
+  customer_lifetime_value:
+    calculation: "SUM(total_amount) OVER (PARTITION BY customer_id)"
+    aliases: ["ltv", "customer value"]
+
+visualization_rules:
+  - when: "time_series"
+    use: "line"
+    requires: ["date", "metric"]
+    
+  - when: "comparison"
+    use: "bar"
+    requires: ["category", "metric"]
+    
+  - when: "distribution"
+    use: "histogram"
+    requires: ["numeric_column"]
 ```
+
+This enhanced config adds:
+1. Response templates for different query types
+2. Analysis types with sample phrases
+3. SQL patterns for common scenarios
+4. Business metrics definitions
+5. Visualization rules
+6. Common question templates
+
+The agent uses these additional sections to:
+1. Better understand query intent
+2. Generate appropriate responses
+3. Choose correct visualization
+4. Follow SQL best practices
+5. Map business terms to technical implementation
+
+Would you like me to explain how any specific section is used by the agent?
