@@ -1,40 +1,73 @@
-def determine_next_step(self, 
-                       query: str, 
-                       plan: List[PlanStep], 
-                       executed_steps: List[PlanStep], 
-                       context: Dict[str, Any]) -> Dict[str, Any]:
-    """Determine next action based on current state and available context"""
-    
-    # Find next pending step
-    pending_steps = [step for step in plan if step.status == "pending"]
-    if not pending_steps:
-        # If there are no more pending steps, we're done
-        return {"next_tool": None}
+def process_query(self, query: str) -> Dict[str, Any]:
+    """Main query processing pipeline with step tracking"""
+    try:
+        # Initial analysis and plan creation
+        analysis = self.analyze_query(query)
+        if analysis["query_type"] != "data_analysis":
+            return self._handle_conversation(query)
 
-    next_step = pending_steps[0]
-    tool_requirements = self.TOOL_INPUT_REQUIREMENTS.get(next_step.tool, {})
-    
-    # Determine the required inputs for the next step
-    required_inputs = {}
-    for required_input in tool_requirements.get('required', []):
-        if required_input in context:
-            required_inputs[required_input] = context[required_input]
-        else:
-            # If a required input is not available in the context, we can't proceed
-            return {
-                "next_tool": None,
-                "reason": f"Missing required input: {required_input}"
-            }
+        # Create initial plan
+        plan = self.create_execution_plan(analysis)
+        total_steps = len(plan)
+        context = {"query": query}
+        executed_steps = []
 
-    # Determine the optional inputs for the next step
-    optional_inputs = {}
-    for optional_input in tool_requirements.get('optional', []):
-        if optional_input in context:
-            optional_inputs[optional_input] = context[optional_input]
+        # Execute plan
+        for step in plan:
+            if len(executed_steps) >= self.max_steps:
+                break
 
-    # Construct the response
-    return {
-        "next_tool": next_step.tool,
-        "required_inputs": required_inputs,
-        "reason": next_step.reason
-    }
+            # Determine inputs for current step
+            next_action = self.determine_next_step(
+                current_step=step,
+                executed_steps=executed_steps,
+                context=context,
+                total_steps=total_steps
+            )
+
+            # Get base inputs from next_action
+            execution_inputs = next_action["inputs"]
+
+            # Add current_step and total_steps only for tools that need them
+            if step.tool in [
+                ToolType.SQL.value,
+                ToolType.VALIDATION.value,
+                ToolType.EXECUTION.value,
+                ToolType.VISUALIZATION.value
+            ]:
+                execution_inputs.update({
+                    "current_step": step.order,
+                    "total_steps": total_steps
+                })
+
+            # Execute step with appropriate inputs
+            result = self.tools[step.tool].execute(**execution_inputs)
+
+            step.result = result
+            step.status = "completed" if result["status"] == "success" else "error"
+            executed_steps.append(step)
+
+            # Update context with results
+            if isinstance(result, dict):
+                context.update(result)
+
+            # Check for errors
+            if step.status == "error":
+                return self._handle_error(
+                    f"Failed at step {step.order}: {step.tool}",
+                    result.get("error", "Unknown error"),
+                    executed_steps
+                )
+
+        # Prepare final response
+        return {
+            "type": "analysis",
+            "context": context,
+            "steps": executed_steps,
+            "visualization": analysis.get("visualization", {}),
+            "status": "success"
+        }
+
+    except Exception as e:
+        logger.error(f"Query processing failed: {traceback.format_exc()}")
+        return self._handle_error("Failed to process query", str(e))
