@@ -453,3 +453,139 @@ class SchemaLookupTool(Tool):
         }
         
         return result
+
+
+
+
+def process_query(self, query: str) -> Dict[str, Any]:
+    """Main query processing pipeline"""
+    try:
+        # Step 1: Analyze query intent and get plan
+        logger.info(f"Starting query analysis for: {query}")
+        analysis = self.analyze_query(query)
+        logger.info(f"Query analysis result: {analysis}")
+
+        # Handle non-data queries
+        if isinstance(analysis, dict) and analysis.get("query_type") in ["greeting", "help"]:
+            return self.handle_greeting_or_help(query)
+        elif isinstance(analysis, dict) and analysis.get("query_type") == "off_topic":
+            return {
+                "type": "conversation",
+                "response": "I can only help with data analysis questions about the available data."
+            }
+
+        # Initialize context and steps tracking
+        context = {"query": query}
+        executed_steps = []
+
+        # Validate plan exists and is list
+        plan = analysis.get("plan", []) if isinstance(analysis, dict) else []
+        if not plan:
+            logger.error("No valid plan received")
+            return {
+                "type": "error",
+                "message": "Failed to create execution plan",
+                "status": "error"
+            }
+
+        # Execute each step in the plan
+        for step_dict in plan:
+            if not isinstance(step_dict, dict):
+                continue
+                
+            tool_name = step_dict.get("tool")
+            if not tool_name or tool_name not in self.tools:
+                continue
+
+            # Execute schema lookup
+            if tool_name == ToolType.SCHEMA.value:
+                result = self.tools[tool_name].execute(query=query)
+                if result["status"] == "success":
+                    context.update(result)
+
+            # Execute SQL generation
+            elif tool_name == ToolType.SQL.value:
+                if "schema_context" not in context:
+                    continue
+                result = self.tools[tool_name].execute(
+                    user_query=query,
+                    schema_context=context["schema_context"]
+                )
+                if result["status"] == "success":
+                    context["sql"] = result["sql"]
+
+            # Execute SQL validation
+            elif tool_name == ToolType.VALIDATION.value:
+                if "sql" not in context:
+                    continue
+                retry_count = 0
+                while retry_count < SQLValidationTool.MAX_RETRIES:
+                    result = self.tools[tool_name].execute(
+                        sql=context["sql"],
+                        schema_context=context["schema_context"],
+                        retry_count=retry_count
+                    )
+                    if result["status"] == "success" and result.get("is_safe", False):
+                        break
+                    if retry_count < SQLValidationTool.MAX_RETRIES - 1 and result.get("feedback"):
+                        sql_result = self.tools[ToolType.SQL.value].execute(
+                            user_query=f"{query} [Feedback: {result['feedback']}]",
+                            schema_context=context["schema_context"]
+                        )
+                        if sql_result["status"] == "success":
+                            context["sql"] = sql_result["sql"]
+                    retry_count += 1
+
+            # Execute SQL
+            elif tool_name == ToolType.EXECUTION.value:
+                if "sql" not in context:
+                    continue
+                result = self.tools[tool_name].execute(sql=context["sql"])
+                if result["status"] == "success":
+                    context.update(result)
+
+            # Execute visualization if needed
+            elif tool_name == ToolType.VISUALIZATION.value and analysis.get("needs_visualization"):
+                if "metadata" not in context or "data" not in context:
+                    continue
+                result = self.tools[tool_name].execute(
+                    user_query=query,
+                    metadata=context["metadata"]
+                )
+                if result["status"] == "success" and "config" in result:
+                    try:
+                        df = context["data"]
+                        viz_type = result.get("viz_type", "bar")
+                        viz_config = result["config"]
+                        fig = px.line(df, **viz_config) if viz_type == "line" else px.bar(df, **viz_config)
+                        context["visualization"] = fig
+                        result["visualization_created"] = True
+                    except Exception as viz_error:
+                        logger.error(f"Visualization creation failed: {viz_error}")
+                        result = {"status": "error", "message": str(viz_error)}
+
+            # Record step execution
+            executed_steps.append({
+                "tool": tool_name,
+                "status": result.get("status", "error"),
+                "result": {k: v for k, v in result.items() if k != "tool"}
+            })
+
+            # Break if step failed
+            if result.get("status") != "success":
+                break
+
+        return {
+            "type": "analysis",
+            "steps": executed_steps,
+            "context": context,
+            "status": "success" if executed_steps and all(s["status"] == "success" for s in executed_steps) else "error"
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing query: {traceback.format_exc()}")
+        return {
+            "type": "error",
+            "message": str(e),
+            "status": "error"
+        }
