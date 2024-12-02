@@ -1,0 +1,87 @@
+tables:
+  sales_transactions:
+    description: "Daily sales transactions including product details, customer information, and revenue"
+    create_statement: |
+      CREATE TABLE sales_transactions (
+        transaction_id STRING,
+        date DATE,
+        customer_id STRING,
+        product_id STRING,
+        quantity INT,
+        unit_price FLOAT,
+        total_amount FLOAT,
+        payment_method STRING,
+        store_id STRING
+      )
+    sample_questions:
+      - "What are the daily sales trends for the last month?"
+      - "Show me revenue by payment method"
+      - "Which stores have the highest sales volume?"
+      
+  products:
+    description: "Product catalog with categories, prices, and inventory information"
+    create_statement: |
+      CREATE TABLE products (
+        product_id STRING,
+        product_name STRING,
+        category STRING,
+        subcategory STRING,
+        base_price FLOAT,
+        current_stock INT,
+        reorder_point INT,
+        supplier_id STRING
+      )
+    sample_questions:
+      - "What are the top selling products by category?"
+      - "Show me products with low inventory"
+      - "Which categories generate the most revenue?"
+
+  customers:
+    description: "Customer information including demographics and contact details"
+    create_statement: |
+      CREATE TABLE customers (
+        customer_id STRING,
+        name STRING,
+        email STRING,
+        phone STRING,
+        city STRING,
+        state STRING,
+        country STRING,
+        customer_segment STRING,
+        join_date DATE
+      )
+    sample_questions:
+      - "What's the customer distribution by state?"
+      - "Show me sales by customer segment"
+      - "Which cities have the most customers?"
+
+  stores:
+    description: "Store locations and details including region and type"
+    create_statement: |
+      CREATE TABLE stores (
+        store_id STRING,
+        store_name STRING,
+        city STRING,
+        state STRING,
+        region STRING,
+        store_type STRING,
+        opening_date DATE
+      )
+    sample_questions:
+      - "Compare sales performance between store types"
+      - "Show me store distribution by region"
+      - "Which stores opened in the last year?"
+
+analysis_capabilities:
+  - description: "Sales trend analysis with daily, weekly, or monthly aggregation"
+    example: "Show me daily sales trends for the last quarter"
+  - description: "Product performance analysis by category and subcategory"
+    example: "What are the top performing product categories?"
+  - description: "Customer segmentation and behavior analysis"
+    example: "Show me purchase patterns by customer segment"
+  - description: "Geographical analysis of sales and customers"
+    example: "Display sales distribution by region"
+  - description: "Store performance comparison and benchmarking"
+    example: "Compare performance between store types"
+  - description: "Inventory analysis and stock level monitoring"
+    example: "Which products are below reorder point?"
