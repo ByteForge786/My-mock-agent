@@ -1,0 +1,250 @@
+```yaml
+# schema_config.yaml
+tables:
+  sales_transactions:
+    description: "Records of all sales transactions including customer purchases, revenue, and product details"
+    create_statement: >
+      CREATE TABLE sales_transactions (
+        transaction_id INTEGER PRIMARY KEY,
+        date TIMESTAMP,
+        customer_id INTEGER,
+        product_id INTEGER,
+        store_id INTEGER,
+        quantity INTEGER,
+        unit_price DECIMAL(10,2),
+        discount_amount DECIMAL(10,2),
+        total_amount DECIMAL(10,2),
+        payment_method VARCHAR(50),
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id),
+        FOREIGN KEY (store_id) REFERENCES stores(store_id)
+      )
+    columns:
+      - name: transaction_id
+        type: INTEGER
+        description: "Unique identifier for each transaction"
+      - name: date
+        type: TIMESTAMP
+        description: "Date and time when the sale occurred"
+      - name: customer_id
+        type: INTEGER
+        description: "Reference to the customer who made the purchase"
+      - name: product_id
+        type: INTEGER
+        description: "Reference to the product that was sold"
+      - name: store_id
+        type: INTEGER
+        description: "Reference to the store where the sale occurred"
+      - name: quantity
+        type: INTEGER
+        description: "Number of units sold"
+      - name: unit_price
+        type: DECIMAL
+        description: "Price per unit at time of sale"
+      - name: discount_amount
+        type: DECIMAL
+        description: "Amount of discount applied"
+      - name: total_amount
+        type: DECIMAL
+        description: "Final amount after applying discounts"
+      - name: payment_method
+        type: VARCHAR
+        description: "Method of payment (cash, credit, debit, etc.)"
+
+  products:
+    description: "Master product catalog containing all product information including categories, pricing, and inventory"
+    create_statement: >
+      CREATE TABLE products (
+        product_id INTEGER PRIMARY KEY,
+        name VARCHAR(200),
+        category VARCHAR(100),
+        subcategory VARCHAR(100),
+        brand VARCHAR(100),
+        supplier_id INTEGER,
+        base_price DECIMAL(10,2),
+        current_stock INTEGER,
+        reorder_level INTEGER,
+        is_active BOOLEAN,
+        created_at TIMESTAMP,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(supplier_id)
+      )
+    columns:
+      - name: product_id
+        type: INTEGER
+        description: "Unique identifier for each product"
+      - name: name
+        type: VARCHAR
+        description: "Product name/title"
+      - name: category
+        type: VARCHAR
+        description: "Main product category (Electronics, Clothing, etc.)"
+      - name: subcategory
+        type: VARCHAR
+        description: "Specific product subcategory"
+      - name: brand
+        type: VARCHAR
+        description: "Product brand or manufacturer"
+      - name: supplier_id
+        type: INTEGER
+        description: "Reference to the supplier"
+      - name: base_price
+        type: DECIMAL
+        description: "Standard retail price before discounts"
+      - name: current_stock
+        type: INTEGER
+        description: "Current inventory level"
+      - name: reorder_level
+        type: INTEGER
+        description: "Minimum stock level before reordering"
+      - name: is_active
+        type: BOOLEAN
+        description: "Whether product is currently being sold"
+      - name: created_at
+        type: TIMESTAMP
+        description: "When product was added to catalog"
+
+  customers:
+    description: "Customer master data containing demographics, contact information, and purchase history"
+    create_statement: >
+      CREATE TABLE customers (
+        customer_id INTEGER PRIMARY KEY,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        email VARCHAR(200),
+        phone VARCHAR(50),
+        address TEXT,
+        city VARCHAR(100),
+        state VARCHAR(50),
+        country VARCHAR(50),
+        postal_code VARCHAR(20),
+        segment VARCHAR(50),
+        registration_date DATE,
+        last_purchase_date DATE,
+        lifetime_value DECIMAL(15,2)
+      )
+    columns:
+      - name: customer_id
+        type: INTEGER
+        description: "Unique identifier for each customer"
+      - name: first_name
+        type: VARCHAR
+        description: "Customer's first name"
+      - name: last_name
+        type: VARCHAR
+        description: "Customer's last name"
+      - name: email
+        type: VARCHAR
+        description: "Primary email address"
+      - name: phone
+        type: VARCHAR
+        description: "Contact phone number"
+      - name: address
+        type: TEXT
+        description: "Street address"
+      - name: city
+        type: VARCHAR
+        description: "City name"
+      - name: state
+        type: VARCHAR
+        description: "State or province"
+      - name: country
+        type: VARCHAR
+        description: "Country name"
+      - name: postal_code
+        type: VARCHAR
+        description: "Postal or ZIP code"
+      - name: segment
+        type: VARCHAR
+        description: "Customer segment (Premium, Regular, etc.)"
+      - name: registration_date
+        type: DATE
+        description: "When customer first registered"
+      - name: last_purchase_date
+        type: DATE
+        description: "Date of most recent purchase"
+      - name: lifetime_value
+        type: DECIMAL
+        description: "Total value of all purchases"
+
+relationships:
+  - name: "sales_to_customers"
+    from_table: "sales_transactions"
+    from_column: "customer_id"
+    to_table: "customers"
+    to_column: "customer_id"
+    type: "many_to_one"
+    description: "Links sales to customer details"
+
+  - name: "sales_to_products"
+    from_table: "sales_transactions"
+    from_column: "product_id"
+    to_table: "products"
+    to_column: "product_id"
+    type: "many_to_one"
+    description: "Links sales to product information"
+
+semantic_mappings:
+  revenue:
+    - "total_amount"
+    - "revenue"
+    - "sales"
+    - "income"
+    - "earnings"
+    - "money"
+  
+  customer:
+    - "customer"
+    - "buyer"
+    - "client"
+    - "shopper"
+    - "consumer"
+  
+  product:
+    - "product"
+    - "item"
+    - "goods"
+    - "merchandise"
+    - "sku"
+  
+  time:
+    - "date"
+    - "time"
+    - "period"
+    - "month"
+    - "year"
+    - "daily"
+    - "monthly"
+    - "yearly"
+  
+  location:
+    - "city"
+    - "state"
+    - "country"
+    - "region"
+    - "area"
+    - "location"
+
+query_patterns:
+  time_series:
+    - "trend"
+    - "over time"
+    - "historical"
+    - "daily"
+    - "monthly"
+    - "yearly"
+    
+  comparison:
+    - "compare"
+    - "versus"
+    - "difference"
+    - "highest"
+    - "lowest"
+    
+  aggregation:
+    - "total"
+    - "average"
+    - "sum"
+    - "count"
+    - "minimum"
+    - "maximum"
+```
